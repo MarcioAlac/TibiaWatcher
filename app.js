@@ -35,6 +35,7 @@ const perguntas = [
         ]
     }
 ];
+git remote add origin https://github.com/MarcioAlac/TibiaWatcher.git
 
 const respostas = await inquirer.prompt(perguntas);
 
