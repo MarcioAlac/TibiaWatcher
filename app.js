@@ -1,5 +1,8 @@
+
 import Tibia from './app/Tibia.js';
 import inquirer from 'inquirer';
+import dotenv from 'dotenv';
+dotenv.config();
 
 console.clear()
 
@@ -23,31 +26,55 @@ console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m
 `)
 
-const perguntas = [
-    { type: 'input', name: 'email', message: 'Informe seu email:' },
-    { type: 'password', name: 'password', message: 'Informe sua senha:' },
-    { type: 'input', name: 'charName', message: 'Informe o nome do personagem (deixe vazio para listar os personagens):' },
-    {
-        type: 'list',
-        name: 'opcao',
-        message: '*************** AGORA SELECIONE UMA OPÇÃO ***************',
-        choices: [
-            'Conferir quantidade de mortes',
-            'Ver status da conta',
-            'Conferir se o personagem está online'
-        ]
-    }
-];
 
-const respostas = await inquirer.prompt(perguntas);
+const envEmail = process.env.EMAIL;
+const envPassword = process.env.PASSWORD;
+let respostas = {};
+
+if (envEmail && envPassword) {
+    respostas.email = envEmail;
+    respostas.password = envPassword;
+    // Perguntar apenas charName e opcao
+    respostas = {
+        ...respostas,
+        ...(await inquirer.prompt([
+            { type: 'input', name: 'charName', message: 'Informe o nome do personagem (deixe vazio para listar os personagens):' },
+            {
+                type: 'list',
+                name: 'opcao',
+                message: '*************** AGORA SELECIONE UMA OPÇÃO ***************',
+                choices: [
+                    'Conferir quantidade de mortes',
+                    'Ver status da conta',
+                    'Conferir se o personagem está online'
+                ]
+            }
+        ]))
+    };
+} else {
+    respostas = await inquirer.prompt([
+        { type: 'input', name: 'email', message: 'Informe seu email:' },
+        { type: 'password', name: 'password', message: 'Informe sua senha:' },
+        { type: 'input', name: 'charName', message: 'Informe o nome do personagem (deixe vazio para listar os personagens):' },
+        {
+            type: 'list',
+            name: 'opcao',
+            message: '*************** AGORA SELECIONE UMA OPÇÃO ***************',
+            choices: [
+                'Conferir quantidade de mortes',
+                'Ver status da conta',
+                'Conferir se o personagem está online'
+            ]
+        }
+    ]);
+}
 
 console.clear();
 console.log('Você escolheu:', respostas);
 
-const tibia = new Tibia()
-
-tibia.setSpeak(true)
-tibia.setEmail(respostas.email)
-tibia.setPassword(respostas.password)
-tibia.setCharName(respostas.charName) // caso seja null ou "" ele lista os personagens e pede para escolher ou seja esta funcao é opcional
-tibia.start()
+const tibia = new Tibia();
+tibia.setSpeak(true);
+tibia.setEmail(respostas.email);
+tibia.setPassword(respostas.password);
+tibia.setCharName(respostas.charName); // caso seja null ou "" ele lista os personagens e pede para escolher ou seja esta funcao é opcional
+tibia.start();

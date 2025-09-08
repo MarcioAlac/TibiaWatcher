@@ -5,7 +5,6 @@ import save from './func/data.js'
 import * as cheerio from 'cheerio'
 import promptSync from 'prompt-sync'
 import inquirer from 'inquirer'
-import { Console } from 'console'
 
 /**
  * Tibia
@@ -31,14 +30,14 @@ import { Console } from 'console'
  * @method setEmail(email) - Define o e-mail do usuário.
  * @method setPassword(password) - Define a senha do usuário.
  * @method setCharName(charName) - Define o nome do personagem.
- * @method speak(txt, type) - Exibe mensagens coloridas no console conforme o tipo.
+ * @method speak - Exibe mensagens coloridas no console conforme o tipo.
  * @method start() - Inicia o fluxo principal de login, seleção de personagem e monitoramento.
  * @method showCharactersList(list) - Exibe lista formatada de personagens disponíveis.
  * @method havePin(data) - Verifica o status da conta (PIN, login, IP, sucesso).
  * 
  * @private
  * @method #loginPage() - Realiza requisição GET para página de login.
- * @method #accountPage(email, password) - Realiza requisição POST para autenticação.
+ * @method #accountPage - Realiza requisição POST para autenticação.
  * @method #scrapChars(data) - Extrai lista de personagens do HTML da conta.
  * @method #getCharStatus(name) - Busca histórico de mortes do personagem.
  */
