@@ -34,7 +34,6 @@ let respostas = {};
 if (envEmail && envPassword) {
     respostas.email = envEmail;
     respostas.password = envPassword;
-    // Perguntar apenas charName e opcao
     respostas = {
         ...respostas,
         ...(await inquirer.prompt([
