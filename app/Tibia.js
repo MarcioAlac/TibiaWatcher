@@ -12,7 +12,7 @@ import { Console } from 'console'
  * 
  * Classe principal para automação e monitoramento de contas e personagens do Tibia via web scraping.
  * Permite login, seleção de personagem, exibição de histórico de mortes e vigilância em tempo real.
- * Utiliza requisições HTTP simulando um navegador móvel para contornar restrições de segurança.
+ * Utiliza requisições HTTP.
  * 
  * @class
  * @example
