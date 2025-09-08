@@ -4,17 +4,53 @@ import { wrapper } from 'axios-cookiejar-support'
 import save from './func/data.js'
 import * as cheerio from 'cheerio'
 import promptSync from 'prompt-sync'
+import inquirer from 'inquirer'
+import { Console } from 'console'
 
+/**
+ * Tibia
+ * 
+ * Classe principal para automação e monitoramento de contas e personagens do Tibia via web scraping.
+ * Permite login, seleção de personagem, exibição de histórico de mortes e vigilância em tempo real.
+ * Utiliza requisições HTTP simulando um navegador móvel para contornar restrições de segurança.
+ * 
+ * @class
+ * @example
+ * const tibia = new Tibia();
+ * tibia.setEmail('user@email.com');
+ * tibia.setPassword('password123');
+ * tibia.setSpeak(true);
+ * await tibia.start();
+ * 
+ * @property {Object} userData - Dados do usuário (email, senha, nome do personagem).
+ * @property {CookieJar} jar - Gerenciador de cookies para sessões HTTP.
+ * @property {AxiosInstance} client - Instância Axios configurada para requisições autenticadas.
+ * @property {boolean} debug - Ativa/desativa mensagens de depuração no console.
+ * 
+ * @method setSpeak(bool) - Ativa/desativa mensagens de depuração.
+ * @method setEmail(email) - Define o e-mail do usuário.
+ * @method setPassword(password) - Define a senha do usuário.
+ * @method setCharName(charName) - Define o nome do personagem.
+ * @method speak(txt, type) - Exibe mensagens coloridas no console conforme o tipo.
+ * @method start() - Inicia o fluxo principal de login, seleção de personagem e monitoramento.
+ * @method showCharactersList(list) - Exibe lista formatada de personagens disponíveis.
+ * @method havePin(data) - Verifica o status da conta (PIN, login, IP, sucesso).
+ * 
+ * @private
+ * @method #loginPage() - Realiza requisição GET para página de login.
+ * @method #accountPage(email, password) - Realiza requisição POST para autenticação.
+ * @method #scrapChars(data) - Extrai lista de personagens do HTML da conta.
+ * @method #getCharStatus(name) - Busca histórico de mortes do personagem.
+ */
 class Tibia {
     constructor() {
         console.clear()
-
-        this.userData = {}
-        this.jar = new CookieJar()
-        this.client = wrapper(axios.create({ jar: this.jar }))
-        this.debug = false
+        this.userData   = {}
+        this.jar        = new CookieJar()
+        this.client     = wrapper(axios.create({ jar: this.jar }))
+        this.debug      = false
     }
-
+    // Setters
     setSpeak(bool) {
         this.debug = bool
     }
@@ -31,6 +67,7 @@ class Tibia {
         this.userData.charName = charName
     }
 
+    // Methods
     speak(txt, type) {
         const colors = {
             error: '\x1b[31m',    // Red
@@ -121,14 +158,30 @@ class Tibia {
                     }
                 }
 
-                let charChoose = ""
+                let charChoose
+                const charAvailable = this.#scrapChars(currentUserPage)
 
                 if (!this.userData.charName) {
-                    const charAvailable = this.#scrapChars(currentUserPage)
+
+                    console.clear()
+
+                    this.showCharactersList(charAvailable)
+
                     this.speak('Escolha um dos Personagens disponíveis na conta:', 'warning')
 
                     const maxChoice = charAvailable.length
-                    let choice = prompt('Digite o número do personagem escolhido: ').trim()
+
+                    const { choice } = await inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'choice',
+                            message: 'Digite o número do personagem escolhido:',
+                            choices: charAvailable.map((char, idx) => ({
+                                name: `${idx + 1}. ${char.name}`,
+                                value: idx + 1
+                            }))
+                        }
+                    ])
 
                     while (true) {
                         if (choice > maxChoice) {
@@ -141,27 +194,157 @@ class Tibia {
                             this.speak(`Personagem escolhido: ${charChoose}`, "success")
                             break
                         } else {
+                            charChoose = charAvailable[choice - 1].name
                             break
                         }
                     }
 
                 }
 
-                const characterName = this.userData.charName || charChoose;
+                this.speak(charChoose, 'log')
+                const characterName = this.userData.charName || charChoose
                 let charStatus = await this.#getCharStatus(characterName)
-                const charStatusJn = charStatus ? JSON.stringify(charStatus, null, 2) : null
-                const primeiraMorte = Array.isArray(charStatus) && charStatus.length > 0 ? charStatus[0] : null;
+
+                if (Array.isArray(charStatus) && charStatus.length > 0) {
+                    console.log(`\n\x1b[1m\x1b[385208m===== HISTÓRICO DE MORTES DE ${characterName} =====\x1b[0m\n`)
+                    charStatus.forEach((death, index) => {
+                        console.log(
+                            `\x1b[385196m#${index + 1}\x1b[0m ` +
+                            `\x1b[1mData:\x1b[0m \x1b[38545m${death.date}\x1b[0m\n` +
+                            `\x1b[1mDescrição:\x1b[0m \x1b[385220m${death.description}\x1b[0m\n` +
+                            `\x1b[1mPenalidade:\x1b[0m \x1b[385208m${death.penalty}\x1b[0m\n`
+                        )
+                        console.log('\x1b[385240m----------------------------------------\x1b[0m')
+                    })
+                    console.log('\x1b[1m\x1b[385208m===== FIM DO HISTÓRICO =====\x1b[0m\n')
+                } else {
+                    console.log('\x1b[1m\x1b[38540mNenhuma morte registrada para este personagem.\x1b[0m\n')
+                }
+
+                // Watch the character's deaths
                 if (charStatus) {
-                    let observer = prompt("[  warning  ] Deseja manter vigilancia nas mortes do personagem? (s/n): ").trim().toLowerCase()
+                    const observerQuestion = [
+                        {
+                            type: 'list',
+                            name: 'observer',
+                            message: 'Deseja manter vigilância nas mortes do personagem?',
+                            choices: [
+                                { name: 'Sim', value: 's' },
+                                { name: 'Não', value: 'n' }
+                            ]
+                        }
+                    ]
+
+                    const { observer } = await inquirer.prompt(observerQuestion)
                     if (observer === 's') {
-                        let running = true;
+                        let running = true
+
+                        console.clear()
+
+                        // LAST CHARACTER`S DEATH
                         const intervalId = setInterval(async () => {
-                            if (!running) return;
-                            const newStatus     = await this.#getCharStatus(characterName);
-                            const totalMortes   = Array.isArray(newStatus) ? newStatus.length : 0;
+                            if (!running) return
+                            const newStatus = await this.#getCharStatus(characterName)
+                            const totalMortes = Array.isArray(newStatus) ? newStatus.length : 0
+
+                            const lastDeath = Array.isArray(newStatus) && newStatus.length > 0 ? newStatus[0] : null
+
+                            let isNewDeath = false
+
+                            if (lastDeath && lastDeath.date) {
+                                const month = {
+                                    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+                                    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+                                }
+
+                                const actualDateDeath = lastDeath.date
+                                const deathSplit = actualDateDeath.split(' ')
+                                const d = parseInt(deathSplit[1])
+                                const m = month[deathSplit[0]]
+                                const y = parseInt(deathSplit[2])
+                                
+                                const today = new Date()
+
+                                isNewDeath =
+                                    d === today.getDate() &&
+                                    m === today.getMonth() &&
+                                    y === today.getFullYear()
+                            }
+                            
                             console.clear()
-                            this.speak(`Status do personagem Nome: ${characterName} | Número de mortes: ${totalMortes}\nUltima Morte: \nDia: ${charStatus[0].date}\nDescricã̀o: ${charStatus[0].description}\nPenalidade: ${charStatus[0].penalty}`, 'warning')
-                        }, 10000);
+                            console.log('\x1b[1m\x1b[38545m╔══════════════════════════════════════════════════════════╗\x1b[0m')
+                            console.log(`\x1b[1m\x1b[385220m│ Personagem:\x1b[0m \x1b[38539m${characterName}\x1b[0m`)
+                            console.log(`\x1b[1m\x1b[385220m│ Mortes registradas:\x1b[0m \x1b[385196m${totalMortes}\x1b[0m`)
+                            console.log('\x1b[1m\x1b[38545m╠══════════════════════════════════════════════════════════╣\x1b[0m')
+                            if (lastDeath) {
+                                if (isNewDeath) {
+                                    const warningMsg = '⚠️  NOVA MORTE DETECTADA! ⚠️'
+                                    const totalWidth = 58
+                                    const padLength = Math.floor((totalWidth - warningMsg.length) / 2)
+                                    const paddedMsg = '│' + ' '.repeat(padLength) + '\x1b[1m\x1b[385196m' + warningMsg + '\x1b[0m' + ' '.repeat(totalWidth - warningMsg.length - padLength) + '│'
+                                    console.log(paddedMsg)
+                                }
+                                
+                                console.log(`\x1b[1m\x1b[385208m│ Última Morte:\x1b[0m`)
+                                console.log(`\x1b[1m\x1b[385220m│   • Data:\x1b[0m \x1b[38545m${lastDeath.date || 'Data não encontrada'}\x1b[0m`)
+                                console.log(`\x1b[1m\x1b[385220m│   • Descrição:\x1b[0m \x1b[385220m${lastDeath.description || 'Descrição não encontrada'}\x1b[0m`)
+                                console.log(`\x1b[1m\x1b[385220m│   • Penalidade:\x1b[0m \x1b[385208m${lastDeath.penalty || 'Penalidade não encontrada'}\x1b[0m`)
+                            } else {
+                                console.log('\x1b[1m\x1b[38540m│ Nenhuma morte registrada para este personagem\x1b[0m')
+                            }
+                            console.log('\x1b[1m\x1b[38545m╚══════════════════════════════════════════════════════════╝\x1b[0m')
+                        }, 5000)
+
+                    } else if ("n") {
+                        if (charAvailable.length > 1) {
+                            this.speak("\nDeseja verificar o outro Personagem antes de finalizar?", 'warning')
+                            const { choice } = await inquirer.prompt([
+                                {
+                                    type: 'list',
+                                    name: 'choice',
+                                    message: "Selecione uma opção:",
+                                    choices: [
+                                        { name: 'Sim', value: 's' },
+                                        { name: 'Não', value: 'n' }
+                                    ]
+                                }
+                            ])
+
+                            if (choice === 'n') {
+                                this.speak("Finalizando aplicação...", 'info')
+                                process.exit(0)
+                            }
+
+                            this.showCharactersList(charAvailable)
+                            const { person } = await inquirer.prompt([
+                            {
+                                type: 'list',
+                                name: 'person',
+                                message: 'Digite o número do personagem escolhido:',
+                                choices: charAvailable.map((char, idx) => ({
+                                    name: `${idx + 1}. ${char.name}`,
+                                    value: char.name
+                                }))
+                            }
+                            ])
+
+                            const charStatus = await this.#getCharStatus(person)
+
+                            if (Array.isArray(charStatus) && charStatus.length > 0) {
+                                console.log('\x1b[1m\x1b[38551m╔══════════════════════════════════════════════════════════════════════════╗\x1b[0m')
+                                console.log(`\x1b[1m\x1b[38551m│ 🚀  DEATH LOG - ${person}  [${charStatus.length} deaths]  🚀\x1b[0m`)
+                                console.log('\x1b[1m\x1b[38551m╠══════════════════════════════════════════════════════════════════════════╣\x1b[0m')
+                                charStatus.forEach((death, idx) => {
+                                    console.log(`\x1b[385208m│ #${idx + 1} \x1b[0m\x1b[38545m🕒 ${death.date}\x1b[0m`)
+                                    console.log(`\x1b[385220m│    💀 Description: \x1b[0m\x1b[38539m${death.description}\x1b[0m`)
+                                    console.log(`\x1b[385208m│    ⚠️ Penalty: \x1b[0m\x1b[385196m${death.penalty}\x1b[0m`)
+                                    console.log('\x1b[385240m│ ---------------------------------------------------------------------- │\x1b[0m')
+                                })
+                                console.log('\x1b[1m\x1b[38551m╚══════════════════════════════════════════════════════════════════════════╝\x1b[0m')
+                            } else {
+                                console.log('\x1b[1m\x1b[38540mNenhuma morte registrada para este personagem.\x1b[0m\n')
+                            }
+                        }
                     }
                 }
             } else {
@@ -173,8 +356,42 @@ class Tibia {
     }
 
     /**
-     * 
-     * @returns {Promise<string|undefined>} response data or undefined
+     * Exibe uma lista formatada de personagens Tibia no console com saída colorida.
+     *
+     * @param {Array<Object>} list - Um array de objetos de personagens para exibir.
+     */
+    showCharactersList(list) {
+        list.forEach((ele, idx) => {
+            console.log(
+                `\x1b[1m\x1b[38545m┌───────────────────────────────────────────────┐\x1b[0m`
+            )
+            console.log(
+                `\x1b[1m\x1b[385208m│ ${idx + 1}.\n| Nome:\x1b[0m \x1b[385220m${ele.name}\x1b[0m`
+            )
+            console.log(
+                `\x1b[1m\x1b[385208m│ Vocação:\x1b[0m \x1b[38545m${ele.vocation}\x1b[0m`
+            )
+            console.log(
+                `\x1b[1m\x1b[385208m│ Level:\x1b[0m \x1b[38540m${ele.level}\x1b[0m`
+            )
+            console.log(
+                `\x1b[1m\x1b[385208m│ Mundo:\x1b[0m \x1b[38539m${ele.world}\x1b[0m`
+            )
+            console.log(
+                `\x1b[1m\x1b[38545m└───────────────────────────────────────────────┘\x1b[0m\n`
+            )
+        })
+    }
+
+    /**
+     * Inicia o processo de login enviando uma requisição GET para a página de conta do Tibia.
+     * Se as credenciais do usuário estiverem disponíveis, tenta buscar a página da conta usando headers personalizados.
+     * Em caso de sucesso, salva o HTML da resposta em 'account.html' e retorna os dados HTML.
+     * Em caso de falha, registra uma mensagem de erro.
+     *
+     * @private
+     * @async
+     * @returns {Promise<string|undefined>} O conteúdo HTML da página da conta, ou undefined se ocorrer um erro.
      */
     async #loginPage() {
         this.speak('Iniciando login...', 'info')
@@ -227,7 +444,7 @@ class Tibia {
      * contornar possíveis restrições de segurança.
      * 
      * @example
-     * const accountHtml = await tibia.#accountPage('user@email.com', 'password123');
+     * const accountHtml = await tibia.#accountPage('user@email.com', 'password123')
      * if (accountHtml) {
      *   // Processar HTML da conta
      * }
@@ -274,10 +491,19 @@ class Tibia {
         }
     }
 
+
     /**
-     * Returns if account request a PIN to connect or invalid login
-     * @data {*} 
-     * @param {*} data 
+     * Verifica o status da conta a partir do HTML fornecido.
+     *
+     * Este método analisa o HTML para detectar se a conta está logada com sucesso,
+     * se requer PIN, se as credenciais são inválidas ou se está bloqueada por restrições de IP.
+     *
+     * @param {string} data - O conteúdo HTML da página da conta.
+     * @returns {'welcome' | 'IP' | 'login' | 'PIN'} - O status da conta:
+     *   - 'welcome': Conta conectada com sucesso.
+     *   - 'IP': Conta bloqueada por restrições de IP.
+     *   - 'login': Email ou senha inválidos.
+     *   - 'PIN': Código PIN é necessário.
      */
     havePin(data) {
         this.speak('Verificando se a conta possui PIN...', 'info')
@@ -321,43 +547,43 @@ class Tibia {
      * @returns {Array} lista de personagens disponíveis na conta
      */
     #scrapChars(data) {
-        this.speak('Verificando personagens disponíveis na conta...', 'warning');
-        let list = [];
-        const $ = cheerio.load(data);
+        this.speak('Verificando personagens disponíveis na conta...', 'warning')
+        let list = []
+        const $ = cheerio.load(data)
 
-        $("[id^='CharacterRow_']").each((idx, elem) => {
-            let rawText = $(elem).text().replace(/\[Edit\]\s*\[Delete\]/g, '').trim();
-            rawText = rawText.replace(/^\d+\.\s*/, '');
+        const nomes = []
+        $('[id^="CharacterNameOf_"]').each((_, elem) => {
+            nomes.push($(elem).text().trim())
+        })
 
-            const regex = /^(.*)\s+([A-Za-z ]+)\s*-\s*Level\s*(\d+)\s*-\s*On\s*(.+)$/;
-            const match = rawText.match(regex);
-            let name = '', vocation = '', level = 0, world = '';
+        for (let i = 0; i < nomes.length; i += 2) {
+            const name = nomes[i]
+            const details = nomes[i + 1] || ''
+
+            const regex = /^(.*?)\s*-\s*Level\s*(\d+)\s*-\s*On\s*(.+)$/
+            let vocation = '', level = '', world = ''
+
+            const match = details.match(regex)
             if (match) {
-                const completeName = match[1].trim();
-                const vocationFinder = match[2].trim();
-                name = completeName;
-                vocation = vocationFinder;
-                level = parseInt(match[3]);
-                world = match[4].trim();
-            } else {
-                name = rawText;
+                vocation = match[1].trim()
+                level = parseInt(match[2])
+                world = match[3].trim()
             }
+
             list.push({
-                name: name,
+                name,
                 vocation,
                 level,
                 world
-            });
-            this.speak(`${idx + 1} - ${name} | Vocação: ${vocation} | Level: ${level} | Mundo: ${world}`, 'info');
-        });
-
-        return list;
+            })
+        }
+        return list
     }
 
     /**
      * 
      * @param {string} name Nome do personagem  
-     * @returns {Array<object>} Lista de mortes do personagem
+     * @returns {Array<object> || Promise} Lista de mortes do personagem
      * @description 
      * Busca as informações de mortes do personagem na página de gerenciamento de conta
      * e retorna uma lista com os detalhes de cada morte registrada.
@@ -374,14 +600,14 @@ class Tibia {
                     'name': name
                 },
                 headers: {
-                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                    'accept-language': 'pt-BR,pt;q=0.5',
+                    'accept': 'text/html,application/xhtml+xml,application/xmlq=0.9,image/avif,image/webp,image/apng,*/*q=0.8',
+                    'accept-language': 'pt-BR,ptq=0.5',
                     'priority': 'u=0, i',
                     'referer': 'https://www.tibia.com/account/?subtopic=accountmanagement',
-                    'sec-ch-ua': '"Not;A=Brand";v="99", "Brave";v="139", "Chromium";v="139"',
+                    'sec-ch-ua': '"NotA=Brand"v="99", "Brave"v="139", "Chromium"v="139"',
                     'sec-ch-ua-arch': '""',
                     'sec-ch-ua-bitness': '"64"',
-                    'sec-ch-ua-full-version-list': '"Not;A=Brand";v="99.0.0.0", "Brave";v="139.0.0.0", "Chromium";v="139.0.0.0"',
+                    'sec-ch-ua-full-version-list': '"NotA=Brand"v="99.0.0.0", "Brave"v="139.0.0.0", "Chromium"v="139.0.0.0"',
                     'sec-ch-ua-mobile': '?1',
                     'sec-ch-ua-model': '"Nexus 5"',
                     'sec-ch-ua-platform': '"Android"',
@@ -392,9 +618,9 @@ class Tibia {
                     'sec-fetch-user': '?1',
                     'sec-gpc': '1',
                     'upgrade-insecure-requests': '1',
-                    'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+                    'user-agent': 'Mozilla/5.0 (Linux Android 6.0 Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
                 }
-            });
+            })
 
             const $ = cheerio.load(response.data)
             const findDeaths = $('body').text().toLowerCase().includes("character deaths")

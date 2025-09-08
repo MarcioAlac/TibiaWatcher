@@ -1,24 +1,27 @@
 import Tibia from './app/Tibia.js';
-import promptSync from 'prompt-sync'
 import inquirer from 'inquirer';
 
 console.clear()
-
-const prompt = promptSync()
 
 console.log(`
 \x1b[34m
  _______ _ _        __        __        _       _     
 |__   __(_) |       \\ \\      / /       | |     | |    
-   | |   _| |__  ___ \\ \\ /\\ / /__  __ _| |_ ___| |__  
-   | |  | | '_ \\/ _ \\ \\ V  V / _ \\/ _\` | __/ __| '_ \\ 
-   | |  | | |_) |  __/  \\_/\\_/  __/ (_| | || (__| | | |
-   |_|  |_|_.__/ \\___|         |_|   \\__,_|\\__\\___|_| |_|
+   | |   _| |__  ____ \\ \\ /\\ / /__  __ _| |_ ___| |__  
+   | |  | | '_ \\( ) / _ \\ \\ V  V / _ \\/ _\` | __/ __| '_ \\ 
+   | |  | | |_)  | | __/  \\_/\\_/  __/ (_| | || (__| | | |
+   |_|  |_|_.__/  \\___|         |_|   \\__,_|\\__\\___|_| |_|
                  T i b i a W a t c h
 \x1b[0m
 `);
 
-console.log("Vamos precisar do seu email e senha para retornar seus status.\nO código é open source e você pode conferir no github:\n")
+console.log(`
+\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔒 Para acessar seus status, precisamos do seu email e senha.
+🌐 Este projeto é open source! Confira o código no GitHub:
+    https://github.com/seu-repositorio/tibia-watch
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m
+`)
 
 const perguntas = [
     { type: 'input', name: 'email', message: 'Informe seu email:' },
